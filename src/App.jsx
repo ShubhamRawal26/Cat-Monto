@@ -8,7 +8,7 @@ export default function App() {
   const [catState, setCatState] = useState('sleeping'); // 'sleeping' (no errors) | 'attention' | 'speaking' | 'thinking' | 'idle'
   const [fsmState, setFsmState] = useState('WATCHING');
   const [suggestion, setSuggestion] = useState(null);
-  const [activeModel, setActiveModel] = useState('Gemini Flash');
+  const [activeModel, setActiveModel] = useState('gemini-3.5-flash');
   const [bubbleHeight, setBubbleHeight] = useState(190);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [showAskInput, setShowAskInput] = useState(false);
@@ -25,6 +25,9 @@ export default function App() {
         .then((s) => {
           setSettings(s || {});
           setIsMonitoring(Boolean(s?.monitoringEnabled));
+          if (s?.geminiModel) {
+            setActiveModel(s.geminiModel);
+          }
         })
         .catch((err) => console.warn('[App] getSettings error:', err));
 

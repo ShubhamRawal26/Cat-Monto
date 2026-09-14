@@ -4,7 +4,7 @@ contextBridge.exposeInMainWorld('catmonto', {
   // Screen & Monitoring
   toggleMonitoring: (enabled) => ipcRenderer.invoke('monitoring:toggle', enabled),
   getMonitoringStatus: () => ipcRenderer.invoke('monitoring:status'),
-  captureNow: () => ipcRenderer.invoke('screen:captureNow'),
+  captureNow: (sourceId) => ipcRenderer.invoke('screen:captureNow', sourceId),
   getScreenSources: () => ipcRenderer.invoke('screen:getSources'),
   checkPermissions: () => ipcRenderer.invoke('permissions:check'),
   setCaptureRegion: (region) => ipcRenderer.invoke('capture:setRegion', region),

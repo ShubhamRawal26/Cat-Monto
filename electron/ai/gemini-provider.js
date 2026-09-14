@@ -31,9 +31,10 @@ CRITICAL RULES TO PREVENT FALSE ALERTS & HALLUCINATIONS:
 4. DO NOT REPORT INCOMPLETE TOKENS WHERE USER IS CURRENTLY TYPING:
    - If the cursor is at the end of a line actively typing, ignore that single unfinished token. Focus on completed statements with errors.
 5. IF CODE IS VALID OR CLEAN:
-   - If there are no definite syntax errors, return {"error": false}. Never invent or imagine errors that do not exist!
-6. BREVITY:
-   - Keep 'title', 'message', and 'suggestion' ultra-concise (1 sentence each). Be fast.
+   - If previous errors have been visibly fixed or removed, return {"error": false}
+- NEVER REPEAT PAST SUGGESTIONS: Analyze solely the current visible code. If an error was already fixed or is gone, return {"error": false}
+- Do NOT report style/formatting/variable naming issues
+- Keep 'title', 'message', and 'suggestion' ultra-concise (1 sentence each). Speed is critical.
 
 Return ONLY valid JSON matching the schema. No markdown outside JSON.`;
 
@@ -75,7 +76,7 @@ class GeminiProvider extends AIProvider {
   constructor(options = {}) {
     super('gemini');
     this.apiKey = options.apiKey || '';
-    const deprecated = ['gemini-2.0-flash', 'gemini-2.5-flash'];
+    const deprecated = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest'];
     const initial = options.model || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
     this.model = deprecated.includes(initial) ? 'gemini-3.5-flash' : initial;
     this.liveClient = new GeminiLiveClient({ apiKey: this.apiKey });
@@ -89,7 +90,7 @@ class GeminiProvider extends AIProvider {
   }
 
   setModel(model) {
-    const deprecated = ['gemini-2.0-flash', 'gemini-2.5-flash'];
+    const deprecated = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest'];
     const chosen = model || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
     this.model = deprecated.includes(chosen) ? 'gemini-3.5-flash' : chosen;
   }
@@ -152,9 +153,7 @@ class GeminiProvider extends AIProvider {
     if (isManualAsk) {
       promptText = `User Question: "${userPrompt}"\nContext: ${contextHint || 'Desktop Workspace'}\nAnswer directly with exact line numbers and solutions. No emojis.`;
     } else {
-      promptText = contextHint && contextHint !== 'Desktop Workspace'
-        ? `Context: ${contextHint}\n\n${STRUCTURED_JSON_PROMPT}`
-        : STRUCTURED_JSON_PROMPT;
+      promptText = STRUCTURED_JSON_PROMPT;
     }
 
     const userParts = [{ text: promptText }];
@@ -187,10 +186,6 @@ class GeminiProvider extends AIProvider {
 
     for (const modelToUse of modelsToTry) {
       const modelConfig = { ...generationConfig };
-      // Disable thinking budget on models that support it for zero thinking latency
-      if (modelToUse.includes('3.5') || modelToUse.includes('pro')) {
-        modelConfig.thinkingConfig = { thinkingBudget: 0 };
-      }
 
       const payload = {
         contents: [{ role: 'user', parts: userParts }],
@@ -206,14 +201,14 @@ class GeminiProvider extends AIProvider {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(15000),
         });
 
         if (!response.ok) {
           const errJson = await response.json().catch(() => ({}));
           const errMsg = errJson?.error?.message || `HTTP ${response.status}`;
-          if (response.status === 400 || response.status === 429 || response.status === 503 || response.status === 404) {
-            console.warn(`[GeminiProvider] ${modelToUse} returned ${response.status}. Trying fallback...`);
+          if (response.status === 400 || response.status === 404 || response.status === 429 || response.status === 503) {
+            console.warn(`[GeminiProvider] ${modelToUse} returned ${response.status} (${errMsg}). Trying fallback...`);
             lastError = new Error(errMsg);
             continue;
           }
@@ -312,9 +307,8 @@ class GeminiProvider extends AIProvider {
 
       } catch (err) {
         lastError = err;
-        if (!err.message?.includes('429') && !err.message?.includes('503') && !err.message?.includes('404')) {
-          break;
-        }
+        console.warn(`[GeminiProvider] ${modelToUse} failed: ${err.message}. Trying next model...`);
+        continue;
       }
     }
 

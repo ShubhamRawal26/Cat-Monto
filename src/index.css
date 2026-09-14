@@ -1322,6 +1322,32 @@ html, body, #root {
   flex-direction: column;
 }
 
+/* Scrollable step content — keeps footer visible while long steps scroll */
+.wizard-content .step-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  padding-bottom: 8px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.wizard-content .step-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.wizard-content .step-panel::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+
+.wizard-content .step-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .wizard-close-btn {
   display: none;
 }

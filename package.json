@@ -51,6 +51,7 @@
       "target": [
         "nsis"
       ],
+      "icon": "public/app-logo.png",
       "artifactName": "Catmonto-Setup.${ext}"
     },
     "nsis": {

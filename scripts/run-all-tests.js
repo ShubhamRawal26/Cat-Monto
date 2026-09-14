@@ -42,7 +42,7 @@ app.whenReady().then(async () => {
 
   assert(typeof settings === 'object', 'SettingsStore.get() returns an object');
   assert(
-    ['gemini-3.5-flash', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-flash-latest'].includes(settings.geminiModel),
+    ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash'].includes(settings.geminiModel),
     `Valid active model configured (got: ${settings.geminiModel})`
   );
   assert(Array.isArray(settings.excludedApps), 'Excluded apps is an array');
@@ -56,15 +56,15 @@ app.whenReady().then(async () => {
   assert(decrypted === testPlaintext, 'safeStorage.decryptValue accurately recovers plaintext');
 
   // Test legacy model migration
-  const mockLegacyStore = new SettingsStore();
   const migrated = { geminiModel: 'gemini-2.0-flash' };
   if (
     migrated.geminiModel === 'gemini-2.0-flash' ||
-    migrated.geminiModel === 'gemini-2.5-flash'
+    migrated.geminiModel === 'gemini-2.0-flash-lite' ||
+    migrated.geminiModel === 'gemini-2.5-flash-lite'
   ) {
     migrated.geminiModel = 'gemini-3.5-flash';
   }
-  assert(migrated.geminiModel === 'gemini-3.5-flash', 'Legacy gemini-2.0-flash automatically migrates to gemini-3.5-flash');
+  assert(migrated.geminiModel === 'gemini-3.5-flash', 'Retired Gemini models automatically migrate to Gemini 3.5 Flash');
 
   // ----------------------------------------------------
   // SUITE 2: Privacy Filter & Window Exclusion
@@ -124,21 +124,21 @@ app.whenReady().then(async () => {
   console.log('\n--- TEST SUITE 4: Google Gemini Provider ---');
   const gemini = new GeminiProvider({
     apiKey: settings.geminiApiKey,
-    model: settings.geminiModel || 'gemini-3.6-flash',
+    model: settings.geminiModel || 'gemini-2.5-flash-lite',
   });
 
   assert(gemini.apiKey.length > 20, 'GeminiProvider loaded decrypted user API key');
   assert(
-    ['gemini-3.5-flash', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-flash-latest'].includes(gemini.model),
+    ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash'].includes(gemini.model),
     `GeminiProvider uses supported model (got: ${gemini.model})`
   );
 
   // Model normalization test
   gemini.setModel('gemini-2.0-flash');
-  assert(gemini.model === 'gemini-3.5-flash', 'GeminiProvider.setModel automatically normalizes legacy gemini-2.0-flash to gemini-3.5-flash');
+  assert(gemini.model === 'gemini-3.5-flash', 'GeminiProvider.setModel automatically normalizes retired Gemini 2.0 Flash to Gemini 3.5 Flash');
 
-  gemini.setModel('gemini-2.5-flash');
-  assert(gemini.model === 'gemini-3.5-flash', 'GeminiProvider.setModel automatically normalizes legacy gemini-2.5-flash to gemini-3.5-flash');
+  gemini.setModel('gemini-3.5-flash');
+  assert(gemini.model === 'gemini-3.5-flash', 'GeminiProvider keeps Gemini 3.5 Flash selection');
 
   console.log('  Testing live Google Gemini API health check...');
   const health = await gemini.checkHealth();

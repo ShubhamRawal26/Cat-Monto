@@ -24,9 +24,9 @@ const CAT_CONFIG = {
   // When null, captures full primary display or active target source
   CAPTURE_REGION: null,
 
-  // Gemini AI Models: Use Gemini Flash Latest for high-precision code vision & zero hallucinations
-  PRIMARY_GEMINI_MODEL: 'gemini-flash-latest',
-  FALLBACK_GEMINI_MODEL: 'gemini-2.5-flash',
+  // Gemini AI Models: Use Gemini 3.5 Flash for high-speed, state-of-the-art vision & zero hallucinations
+  PRIMARY_GEMINI_MODEL: 'gemini-3.5-flash',
+  FALLBACK_GEMINI_MODEL: 'gemini-3.5-flash-lite',
 
   // Rate-limit backoff timeout in milliseconds (30s)
   RATE_LIMIT_BACKOFF_MS: 30000,

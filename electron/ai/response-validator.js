@@ -71,7 +71,11 @@ function validateGeminiResponse(rawResponse) {
     const language = typeof data.language === 'string' ? data.language.toLowerCase().trim() : 'code';
     const severity = ['high', 'medium', 'low'].includes(data.severity) ? data.severity : 'medium';
 
-    if (!message && !title) {
+    // Reject empty / vague structured answers, but do not throw away a real
+    // compiler or editor error merely because the vision model could not read
+    // the tiny gutter number or omitted a separate "suggestion" field.
+    // The UI can still show the model's message in that case.
+    if (!message) {
       return { valid: false, hasError: false, errorObj: null, fingerprint: null };
     }
 

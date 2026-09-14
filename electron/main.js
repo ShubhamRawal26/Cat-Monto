@@ -1,5 +1,21 @@
 const { app, BrowserWindow, ipcMain, screen, desktopCapturer } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// App logo from public folder (public/app-logo.png -> dist/app-logo.png after vite build)
+function getAppIcon() {
+  const candidates = [
+    path.join(__dirname, '../dist/app-logo.png'), // packaged / after `vite build`
+    path.join(__dirname, '../public/app-logo.png'), // dev
+    path.join(__dirname, '../src/assets/cat-awake.png'), // fallback
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch (_) {}
+  }
+  return undefined;
+}
 
 // Ensure consistent application name in dev and prod
 if (app) {
@@ -103,6 +119,7 @@ function createWindow() {
     height: winHeight,
     x: winX,
     y: winY,
+    icon: getAppIcon(),
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -257,13 +274,9 @@ async function processFrame(captureResult) {
         suggestion: null,
       };
     } else if (aiProviderType === 'gemini') {
-      const activeHint = activeErrorFingerprint
-        ? `Previous error was: "${activeErrorFingerprint}". Check if this error was fixed, or if there is a new/different error in the visible code. If all visible code is now valid or has no syntax errors, return error: false.`
-        : (captureResult.name || 'Desktop Workspace');
-
       result = await geminiProvider.analyzeScreen({
         imageBase64: captureResult.base64,
-        contextHint: activeHint,
+        contextHint: captureResult.name || 'Desktop Workspace',
         isExhibitionMode: isExhibition,
       });
     } else if (aiProviderType === 'groq') {
@@ -390,9 +403,9 @@ ipcMain.handle('monitoring:status', async () => {
   };
 });
 
-ipcMain.handle('screen:captureNow', async () => {
+ipcMain.handle('screen:captureNow', async (event, sourceIdOverride) => {
   try {
-    const targetSourceId = settingsStore.get('targetSourceId');
+    const targetSourceId = sourceIdOverride || settingsStore.get('targetSourceId');
     const result = await screenCapturer.captureScreen(targetSourceId);
     return { success: true, base64: result.base64, dataUrl: result.dataUrl, name: result.name };
   } catch (err) {
@@ -453,7 +466,7 @@ ipcMain.handle('gemini:testPrompt', async (event, { apiKey, model }) => {
     if (!testKey || !testKey.trim()) {
       return { success: false, error: 'No API key provided.' };
     }
-    const testModel = model || settingsStore.get('geminiModel') || 'gemini-3.5-flash';
+    const testModel = model || settingsStore.get('geminiModel') || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
     const tester = new GeminiProvider({ apiKey: testKey, model: testModel });
     const res = await tester.analyzeScreen({
       imageBase64: '',
@@ -548,6 +561,7 @@ ipcMain.handle('cat:ask', async (event, userPrompt) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('cat:suggestion', {
         text: answer,
+        model: aiProviderType === 'gemini' ? (geminiProvider.model || 'gemini-3.5-flash') : 'Ollama',
         timestamp: Date.now(),
       });
       mainWindow.webContents.send('cat:state', 'speaking');
@@ -689,11 +703,13 @@ app.whenReady().then(() => {
   const currentKey = settingsStore.get('geminiApiKey');
   if (currentKey) {
     geminiProvider.setApiKey(currentKey);
+    // Prioritize Gemini if user has an API key configured
+    settingsStore.set('aiProvider', 'gemini');
   }
   let configuredModel = settingsStore.get('geminiModel') || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
-  if (!configuredModel || configuredModel === 'gemini-flash-lite-latest') {
-    configuredModel = CAT_CONFIG.PRIMARY_GEMINI_MODEL;
-    settingsStore.set('geminiModel', configuredModel);
+  if (!configuredModel || configuredModel.includes('2.0') || configuredModel.includes('2.5') || configuredModel.includes('1.5') || configuredModel.includes('lite-latest')) {
+    configuredModel = 'gemini-3.5-flash';
+    settingsStore.set('geminiModel', 'gemini-3.5-flash');
   }
   geminiProvider.setModel(configuredModel);
 

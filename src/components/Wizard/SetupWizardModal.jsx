@@ -16,7 +16,7 @@ export default function SetupWizardModal({
   onCheckOllama,
 }) {
   const sanitizeGeminiModel = (m) => {
-    if (!m || m === 'gemini-2.0-flash' || m === 'gemini-2.5-flash' || m === 'gemini-1.5-flash' || m === 'gemini-3.6-flash') {
+    if (!m || m.includes('2.0') || m.includes('2.5') || m.includes('1.5') || m.includes('lite-latest')) {
       return 'gemini-3.5-flash';
     }
     return m;
@@ -85,6 +85,7 @@ export default function SetupWizardModal({
   const [testSnapshot, setTestSnapshot] = useState(null);
   const [capturingTest, setCapturingTest] = useState(false);
 
+<<<<<<< HEAD
   // Groq states
   const [groqApiKey, setGroqApiKey] = useState(settings.groqApiKey || '');
   const [groqModel, setGroqModel] = useState(settings.groqModel || 'qwen/qwen3.6-27b');
@@ -93,6 +94,50 @@ export default function SetupWizardModal({
   const [groqKeyMsg, setGroqKeyMsg] = useState('');
   const [groqTestStatus, setGroqTestStatus] = useState('idle');
   const [groqTestReply, setGroqTestReply] = useState('');
+=======
+  // Choose screen / window source picker
+  const [screenSources, setScreenSources] = useState([]);
+  const [loadingSources, setLoadingSources] = useState(false);
+  const [targetSourceId, setTargetSourceId] = useState(settings.targetSourceId || 'entire-screen');
+  const [targetSourceName, setTargetSourceName] = useState(settings.targetSourceName || 'Entire Screen');
+
+  const handleRefreshSources = async () => {
+    setLoadingSources(true);
+    try {
+      if (window.catmonto?.getScreenSources) {
+        const list = await window.catmonto.getScreenSources();
+        setScreenSources(Array.isArray(list) ? list : []);
+      } else {
+        // Browser preview fallback
+        setScreenSources([
+          { id: 'screen:1', name: 'Entire Screen', type: 'screen' },
+          { id: 'window:1', name: 'VS Code - App.jsx', type: 'window' },
+          { id: 'window:2', name: 'Chrome - localhost:5173', type: 'window' },
+        ]);
+      }
+    } catch (_) {
+      setScreenSources([]);
+    }
+    setLoadingSources(false);
+  };
+
+  useEffect(() => {
+    if (currentStep === 3 && screenSources.length === 0 && !loadingSources) {
+      handleRefreshSources();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  const handleSelectSource = (id) => {
+    setTargetSourceId(id);
+    if (id === 'entire-screen') {
+      setTargetSourceName('Entire Screen');
+      return;
+    }
+    const found = screenSources.find((s) => s.id === id);
+    setTargetSourceName(found?.name || 'Entire Screen');
+  };
+>>>>>>> 3746c2db10673cc8c843d8378957ab60e7b42da6
 
   // Ollama fallback states
   const [ollamaUrl, setOllamaUrl] = useState(settings.ollamaUrl || 'http://127.0.0.1:11434');
@@ -234,7 +279,7 @@ export default function SetupWizardModal({
   const handleTestCapture = async () => {
     setCapturingTest(true);
     if (window.catmonto?.captureNow) {
-      const res = await window.catmonto.captureNow();
+      const res = await window.catmonto.captureNow(targetSourceId);
       if (res.success && res.dataUrl) {
         setTestSnapshot(res.dataUrl);
       }
@@ -259,8 +304,8 @@ export default function SetupWizardModal({
       rememberSecurely,
       privacyShield,
       excludedApps: parsedExclusions,
-      targetSourceId: 'entire-screen',
-      targetSourceName: 'Entire Screen',
+      targetSourceId: targetSourceId || 'entire-screen',
+      targetSourceName: targetSourceName || 'Entire Screen',
       ollamaUrl,
       model: ollamaModel,
       typingPauseDelaySeconds: Number(typingPauseDelaySeconds) || 4,
@@ -571,10 +616,8 @@ export default function SetupWizardModal({
                       onChange={(e) => setGeminiModel(e.target.value)}
                       className="model-select"
                     >
-                      <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest & High Quota - Recommended)</option>
-                      <option value="gemini-3.5-flash">gemini-3.5-flash (High Accuracy Vision)</option>
-                      <option value="gemini-flash-latest">gemini-flash-latest</option>
-                      <option value="gemini-2.5-pro">gemini-2.5-pro (Deep Reasoning)</option>
+                      <option value="gemini-3.5-flash">Gemini 3.5 Flash (fastest & high-precision — recommended)</option>
+                      <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (fast lightweight)</option>
                     </select>
                   </div>
 
@@ -952,6 +995,42 @@ export default function SetupWizardModal({
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
                     Access Active
                   </span>
+                </div>
+
+                <div className="source-picker-box" style={{ marginTop: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <label className="card-label" style={{ margin: 0 }}>Choose screen / window to watch</label>
+                    <button
+                      type="button"
+                      onClick={handleRefreshSources}
+                      disabled={loadingSources}
+                      className="test-capture-btn"
+                      title="Reload open windows and screens"
+                    >
+                      {loadingSources ? 'Loading...' : 'Refresh'}
+                    </button>
+                  </div>
+                  <select
+                    value={targetSourceId}
+                    onChange={(e) => handleSelectSource(e.target.value)}
+                    className="wizard-input"
+                    style={{ width: '100%', fontSize: 12 }}
+                  >
+                    <option value="entire-screen">🖥️ Entire Screen (all windows)</option>
+                    {screenSources.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.type === 'screen' ? '🖥️ ' : '🪟 '}{s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="card-hint">
+                    Watching: <strong>{targetSourceName}</strong> — Catmonto only analyzes this source.
+                  </span>
+                  {screenSources.length === 0 && !loadingSources && (
+                    <span className="card-hint" style={{ color: '#d97706' }}>
+                      No windows found. Open your code editor/browser, then click Refresh.
+                    </span>
+                  )}
                 </div>
 
                 <div className="test-capture-box">
