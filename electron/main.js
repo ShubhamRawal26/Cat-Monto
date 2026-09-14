@@ -28,6 +28,7 @@ const { PrivacyFilter } = require('./privacy/exclusion');
 const { ScreenCapturer } = require('./capture/capturer');
 const { OllamaProvider } = require('./ai/ollama-provider');
 const { GeminiProvider } = require('./ai/gemini-provider');
+const { GroqProvider } = require('./ai/groq-provider');
 
 let mainWindow = null;
 let monitorInterval = null;
@@ -75,6 +76,11 @@ let ollamaProvider = new OllamaProvider({
 let geminiProvider = new GeminiProvider({
   apiKey: settingsStore.get('geminiApiKey'),
   model: settingsStore.get('geminiModel') || CAT_CONFIG.PRIMARY_GEMINI_MODEL,
+});
+
+let groqProvider = new GroqProvider({
+  apiKey: settingsStore.get('groqApiKey'),
+  model: settingsStore.get('groqModel') || 'qwen/qwen3.6-27b',
 });
 
 function createWindow() {
@@ -229,6 +235,8 @@ async function processFrame(captureResult) {
   if (!isSim) {
     if (aiProviderType === 'gemini') {
       if (!geminiProvider.apiKey) return;
+    } else if (aiProviderType === 'groq') {
+      if (!groqProvider.apiKey) return;
     } else {
       const health = await ollamaProvider.checkHealth();
       if (!health.available) return;
@@ -257,6 +265,15 @@ async function processFrame(captureResult) {
         imageBase64: captureResult.base64,
         contextHint: activeHint,
         isExhibitionMode: isExhibition,
+      });
+    } else if (aiProviderType === 'groq') {
+      const activeHint = activeErrorFingerprint
+        ? `Previous error was: "${activeErrorFingerprint}". Check if fixed or new error.`
+        : (captureResult.name || 'Desktop Workspace');
+
+      result = await groqProvider.analyzeScreen({
+        imageBase64: captureResult.base64,
+        contextHint: activeHint,
       });
     } else {
       result = await ollamaProvider.analyzeScreen({
@@ -449,6 +466,32 @@ ipcMain.handle('gemini:testPrompt', async (event, { apiKey, model }) => {
   }
 });
 
+ipcMain.handle('groq:validate', async (event, testKey) => {
+  return await groqProvider.checkHealth(testKey);
+});
+
+ipcMain.handle('groq:testPrompt', async (event, { apiKey, model }) => {
+  try {
+    const testKey = apiKey || settingsStore.get('groqApiKey');
+    if (!testKey || !testKey.trim()) {
+      return { success: false, error: 'No Groq API key provided.' };
+    }
+    let testModel = model || settingsStore.get('groqModel') || 'qwen/qwen3.6-27b';
+    if (testModel.includes('llama-3.2')) {
+      testModel = 'qwen/qwen3.6-27b';
+    }
+    const tester = new GroqProvider({ apiKey: testKey, model: testModel });
+    const res = await tester.analyzeScreen({
+      imageBase64: '',
+      userPrompt: 'Say hello in one short friendly sentence as Catmonto the desktop pet!',
+      contextHint: 'Live Connection Test',
+    });
+    return { success: true, text: res.suggestion || res.raw || 'Catmonto Groq API connected!' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('cat:ask', async (event, userPrompt) => {
   try {
     if (!userPrompt || !userPrompt.trim()) return { error: 'Empty prompt' };
@@ -472,6 +515,16 @@ ipcMain.handle('cat:ask', async (event, userPrompt) => {
         return { error: 'Gemini API key is missing. Click on Cat to set it up.' };
       }
       const res = await geminiProvider.analyzeScreen({
+        imageBase64: capture.base64,
+        userPrompt: userPrompt.trim(),
+        contextHint: capture.name || 'User direct question about screen',
+      });
+      answer = res.suggestion || res.raw || "Screen dekhi, sab theek lag raha hai!";
+    } else if (aiProviderType === 'groq') {
+      if (!groqProvider.apiKey) {
+        return { error: 'Groq API key is missing. Click on Cat to set it up.' };
+      }
+      const res = await groqProvider.analyzeScreen({
         imageBase64: capture.base64,
         userPrompt: userPrompt.trim(),
         contextHint: capture.name || 'User direct question about screen',
@@ -528,6 +581,13 @@ ipcMain.handle('settings:update', async (event, newSettings) => {
   }
   if (newSettings.geminiModel) {
     geminiProvider.setModel(updated.geminiModel);
+  }
+
+  if (newSettings.groqApiKey !== undefined) {
+    groqProvider.setApiKey(updated.groqApiKey);
+  }
+  if (newSettings.groqModel) {
+    groqProvider.setModel(updated.groqModel);
   }
 
   if (newSettings.excludedApps) {

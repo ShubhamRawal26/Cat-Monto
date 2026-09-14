@@ -85,6 +85,15 @@ export default function SetupWizardModal({
   const [testSnapshot, setTestSnapshot] = useState(null);
   const [capturingTest, setCapturingTest] = useState(false);
 
+  // Groq states
+  const [groqApiKey, setGroqApiKey] = useState(settings.groqApiKey || '');
+  const [groqModel, setGroqModel] = useState(settings.groqModel || 'qwen/qwen3.6-27b');
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [groqKeyStatus, setGroqKeyStatus] = useState('idle');
+  const [groqKeyMsg, setGroqKeyMsg] = useState('');
+  const [groqTestStatus, setGroqTestStatus] = useState('idle');
+  const [groqTestReply, setGroqTestReply] = useState('');
+
   // Ollama fallback states
   const [ollamaUrl, setOllamaUrl] = useState(settings.ollamaUrl || 'http://127.0.0.1:11434');
   const [ollamaModel, setOllamaModel] = useState(settings.model || 'qwen2.5-vl:latest');
@@ -162,6 +171,66 @@ export default function SetupWizardModal({
     setTestPromptReply('');
   };
 
+  // Groq key verify
+  const handleVerifyGroqKey = async () => {
+    if (!groqApiKey || !groqApiKey.trim()) {
+      setGroqKeyStatus('invalid');
+      setGroqKeyMsg('Please enter a valid Groq API key.');
+      return;
+    }
+    setGroqKeyStatus('checking');
+    setGroqKeyMsg('');
+    if (window.catmonto?.validateGroq) {
+      const res = await window.catmonto.validateGroq(groqApiKey.trim());
+      if (res?.available) {
+        setGroqKeyStatus('valid');
+        setGroqKeyMsg('Key verified successfully with Groq!');
+      } else {
+        setGroqKeyStatus('invalid');
+        setGroqKeyMsg(res?.error || 'Invalid API key or network error.');
+      }
+    } else {
+      setTimeout(() => {
+        setGroqKeyStatus(groqApiKey.length > 10 ? 'valid' : 'invalid');
+        setGroqKeyMsg(groqApiKey.length > 10 ? 'Key verified! (Preview)' : 'Key too short.');
+      }, 600);
+    }
+  };
+
+  // Groq live test
+  const handleTestGroqPrompt = async () => {
+    if (!groqApiKey || !groqApiKey.trim()) {
+      setGroqTestStatus('error');
+      setGroqTestReply('Enter your Groq API key above first.');
+      return;
+    }
+    setGroqTestStatus('testing');
+    setGroqTestReply('');
+    if (window.catmonto?.testGroqPrompt) {
+      const res = await window.catmonto.testGroqPrompt({ apiKey: groqApiKey.trim(), model: groqModel });
+      if (res.success) {
+        setGroqTestStatus('success');
+        setGroqTestReply(res.text);
+      } else {
+        setGroqTestStatus('error');
+        setGroqTestReply(res.error || 'Failed to call Groq.');
+      }
+    } else {
+      setTimeout(() => {
+        setGroqTestStatus('success');
+        setGroqTestReply("Meow! Groq connection is blazing fast!");
+      }, 500);
+    }
+  };
+
+  const handleRemoveGroqKey = () => {
+    setGroqApiKey('');
+    setGroqKeyStatus('idle');
+    setGroqKeyMsg('');
+    setGroqTestStatus('idle');
+    setGroqTestReply('');
+  };
+
   const handleTestCapture = async () => {
     setCapturingTest(true);
     if (window.catmonto?.captureNow) {
@@ -185,6 +254,8 @@ export default function SetupWizardModal({
       aiProvider: provider,
       geminiApiKey: geminiApiKey.trim(),
       geminiModel,
+      groqApiKey: groqApiKey.trim(),
+      groqModel,
       rememberSecurely,
       privacyShield,
       excludedApps: parsedExclusions,
@@ -465,7 +536,17 @@ export default function SetupWizardModal({
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" />
                   </svg>
-                  Google Gemini (Recommended)
+                  Google Gemini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProvider('groq')}
+                  className={`provider-tab ${provider === 'groq' ? 'active' : ''}`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  Groq (Ultra Fast)
                 </button>
                 <button
                   type="button"
@@ -648,6 +729,141 @@ export default function SetupWizardModal({
                         <p style={{ margin: 0, fontSize: 11, color: '#b91c1c' }}>
                           {testPromptReply}
                         </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : provider === 'groq' ? (
+                <div className="wizard-card key-card">
+                  <div className="key-card-header">
+                    <label className="card-label">Groq API key</label>
+                    <select
+                      value={groqModel}
+                      onChange={(e) => setGroqModel(e.target.value)}
+                      className="model-select"
+                    >
+                      <option value="qwen/qwen3.6-27b">Qwen 3.6 27B Vision (Fast - Recommended)</option>
+                      <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B (Multimodal)</option>
+                    </select>
+                  </div>
+
+                  <div className="key-input-row">
+                    <div className="key-input-wrap">
+                      <span className="key-icon">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                      </span>
+                      <input
+                        type={showGroqKey ? 'text' : 'password'}
+                        value={groqApiKey}
+                        onChange={(e) => {
+                          setGroqApiKey(e.target.value);
+                          setGroqKeyStatus('idle');
+                        }}
+                        placeholder="gsk_..."
+                        className="wizard-input with-prefix"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowGroqKey((v) => !v)}
+                        className="key-eye-btn"
+                        title={showGroqKey ? 'Hide key' : 'Show key'}
+                      >
+                        {showGroqKey ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        )}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleVerifyGroqKey}
+                      disabled={groqKeyStatus === 'checking'}
+                      className={`key-verify-btn ${groqKeyStatus}`}
+                    >
+                      {groqKeyStatus === 'checking' ? 'Checking...' : groqKeyStatus === 'valid' ? 'Verified ✓' : 'Verify'}
+                    </button>
+                  </div>
+
+                  <p className="key-disclaimer">
+                    Groq provides ultra-fast LPU inference. Get your free API key at <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{color:'#4f46e5',textDecoration:'underline'}}>console.groq.com</a>
+                  </p>
+
+                  <div className="key-options-row">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={rememberSecurely}
+                        onChange={(e) => setRememberSecurely(e.target.checked)}
+                      />
+                      <div>
+                        <span className="checkbox-title">Remember securely</span>
+                        <span className="checkbox-desc">Encrypt with Windows DPAPI</span>
+                      </div>
+                    </label>
+                    {groqApiKey && (
+                      <button type="button" onClick={handleRemoveGroqKey} className="remove-key-btn">
+                        Remove stored key
+                      </button>
+                    )}
+                  </div>
+
+                  {groqKeyMsg && (
+                    <div className={`key-feedback ${groqKeyStatus}`}>
+                      {groqKeyMsg}
+                    </div>
+                  )}
+
+                  {/* LIVE TEST */}
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                        Test Groq Speed:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleTestGroqPrompt}
+                        disabled={groqTestStatus === 'testing' || !groqApiKey}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', borderRadius: 8,
+                          background: groqTestStatus === 'testing' ? '#e2e8f0' : '#f97316',
+                          color: '#ffffff', border: 'none', fontSize: 11, fontWeight: 600,
+                          cursor: groqTestStatus === 'testing' ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {groqTestStatus === 'testing' ? (
+                          <span>Calling Groq...</span>
+                        ) : (
+                          <>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                            </svg>
+                            <span>Test Live AI Response</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {groqTestStatus === 'success' && (
+                      <div style={{ marginTop: 10, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 11, color: '#059669', marginBottom: 3 }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                          <span>Groq is Lightning Fast & Working!</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 12, color: '#065f46', fontStyle: 'italic' }}>
+                          "{groqTestReply}"
+                        </p>
+                      </div>
+                    )}
+
+                    {groqTestStatus === 'error' && (
+                      <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px' }}>
+                        <div style={{ fontWeight: 700, fontSize: 11, color: '#dc2626', marginBottom: 2 }}>API Error:</div>
+                        <p style={{ margin: 0, fontSize: 11, color: '#b91c1c' }}>{groqTestReply}</p>
                       </div>
                     )}
                   </div>

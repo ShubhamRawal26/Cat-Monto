@@ -4,10 +4,13 @@ const { app, safeStorage } = require('electron');
 
 const DEFAULT_SETTINGS = {
   monitoringEnabled: true,
-  aiProvider: 'gemini', // 'gemini' | 'ollama'
+  aiProvider: 'gemini', // 'gemini' | 'groq' | 'ollama'
   geminiApiKey: '',
   geminiApiKeyEncrypted: '',
   geminiModel: 'gemini-flash-latest',
+  groqApiKey: '',
+  groqApiKeyEncrypted: '',
+  groqModel: 'qwen/qwen3.6-27b',
   ollamaUrl: 'http://127.0.0.1:11434',
   model: 'qwen2.5-vl:latest',
   checkIntervalSeconds: 3,
@@ -83,11 +86,17 @@ class SettingsStore {
         const parsed = JSON.parse(raw);
         const merged = { ...DEFAULT_SETTINGS, ...parsed };
 
-        // If encrypted key exists, decrypt it if safeStorage is ready
+        // If encrypted keys exist, decrypt them if safeStorage is ready
         if (merged.geminiApiKeyEncrypted) {
           if (safeStorage && safeStorage.isEncryptionAvailable()) {
             const dec = this.decryptValue(merged.geminiApiKeyEncrypted);
             if (dec) merged.geminiApiKey = dec;
+          }
+        }
+        if (merged.groqApiKeyEncrypted) {
+          if (safeStorage && safeStorage.isEncryptionAvailable()) {
+            const dec = this.decryptValue(merged.groqApiKeyEncrypted);
+            if (dec) merged.groqApiKey = dec;
           }
         }
 
@@ -99,6 +108,11 @@ class SettingsStore {
           !merged.geminiModel
         ) {
           merged.geminiModel = 'gemini-3.5-flash';
+        }
+
+        // Automatically migrate decommissioned Groq models
+        if (!merged.groqModel || merged.groqModel.includes('llama-3.2')) {
+          merged.groqModel = 'qwen/qwen3.6-27b';
         }
 
         return merged;
@@ -118,7 +132,7 @@ class SettingsStore {
   save() {
     try {
       const toSave = { ...this.settings };
-      // Encrypt sensitive key if requested
+      // Encrypt sensitive keys if requested
       if (toSave.rememberSecurely && toSave.geminiApiKey) {
         const enc = this.encryptValue(toSave.geminiApiKey);
         if (enc && enc !== toSave.geminiApiKey) {
@@ -127,6 +141,16 @@ class SettingsStore {
         }
       } else if (!toSave.rememberSecurely) {
         toSave.geminiApiKeyEncrypted = '';
+      }
+
+      if (toSave.rememberSecurely && toSave.groqApiKey) {
+        const enc = this.encryptValue(toSave.groqApiKey);
+        if (enc && enc !== toSave.groqApiKey) {
+          toSave.groqApiKeyEncrypted = enc;
+          toSave.groqApiKey = '';
+        }
+      } else if (!toSave.rememberSecurely) {
+        toSave.groqApiKeyEncrypted = '';
       }
 
       fs.writeFileSync(this.filePath, JSON.stringify(toSave, null, 2), 'utf-8');

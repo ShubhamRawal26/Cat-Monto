@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('catmonto', {
   checkOllama: () => ipcRenderer.invoke('ollama:check'),
   validateGemini: (apiKey) => ipcRenderer.invoke('gemini:validate', apiKey),
   testGeminiPrompt: (options) => ipcRenderer.invoke('gemini:testPrompt', options),
+  validateGroq: (apiKey) => ipcRenderer.invoke('groq:validate', apiKey),
+  testGroqPrompt: (options) => ipcRenderer.invoke('groq:testPrompt', options),
   askCat: (prompt) => ipcRenderer.invoke('cat:ask', prompt),
 
   // Settings
