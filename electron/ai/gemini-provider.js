@@ -59,26 +59,20 @@ If all code is valid, clean, or has no syntax errors:
 Keep descriptions 1 brief sentence. Output ONLY valid JSON.`;
 
 
-const GEMINI_MANUAL_ASK_PROMPT = `You are Catmonto, a professional AI programming assistant.
-The user is asking a direct question about their screen.
-
-INSTRUCTIONS:
-1. Answer the user's question directly, accurately, and professionally without emojis.
-2. If the user asks whether there is an error in their code or screen:
-   - Carefully verify the visible code and terminal.
-   - If there is NO error: State clearly: "Screen par koi error nahi hai. Code bilkul theek hai." (or in English: "No errors detected on screen. Code is clean.")
-   - If there IS an error: Pinpoint the exact line number, explain the issue, and provide the exact fix without emojis.
-3. If the user asks an instructional or debugging question:
-   - Provide a direct, practical, concise answer in 2 to 3 sentences with code if applicable.
-4. Tone: Professional, direct, helpful. NO EMOJIS.`;
+const GEMINI_MANUAL_ASK_PROMPT = `You are Catmonto, an ultra-fast AI desktop coding companion.
+CRITICAL RULES:
+1. Maximum 1 or 2 short sentences total. Strictly under 30 words.
+2. NO GREETINGS. NO INTROS ("Based on your screen..."). NO FLUFF. NO EMOJIS.
+3. If user asks about errors:
+   - If error exists: "Line <num>: <concise error>. Fix: <concise fix>."
+   - If code is clean: "Screen par koi error nahi hai. Code clean hai."
+4. If general question: give the direct 1-line answer immediately.`;
 
 class GeminiProvider extends AIProvider {
   constructor(options = {}) {
     super('gemini');
     this.apiKey = options.apiKey || '';
-    const deprecated = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest'];
-    const initial = options.model || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
-    this.model = deprecated.includes(initial) ? 'gemini-3.5-flash' : initial;
+    this.model = options.model || 'gemini-2.0-flash';
     this.liveClient = new GeminiLiveClient({ apiKey: this.apiKey });
   }
 
@@ -90,9 +84,7 @@ class GeminiProvider extends AIProvider {
   }
 
   setModel(model) {
-    const deprecated = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest'];
-    const chosen = model || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
-    this.model = deprecated.includes(chosen) ? 'gemini-3.5-flash' : chosen;
+    this.model = model || 'gemini-2.0-flash';
   }
 
   /**
@@ -167,15 +159,12 @@ class GeminiProvider extends AIProvider {
     }
 
     // Prioritized model chain: Fast-lite first, then fallback
-    const primaryModel = this.model || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
-    const fallbackModel = primaryModel === CAT_CONFIG.PRIMARY_GEMINI_MODEL
-      ? CAT_CONFIG.FALLBACK_GEMINI_MODEL
-      : CAT_CONFIG.PRIMARY_GEMINI_MODEL;
-    const modelsToTry = [...new Set([primaryModel, fallbackModel])];
+    const primaryModel = this.model || 'gemini-2.0-flash';
+    const modelsToTry = [...new Set([primaryModel, 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'])];
 
     const generationConfig = {
       temperature: isManualAsk ? 0.2 : 0.0,
-      maxOutputTokens: isManualAsk ? 512 : 180,
+      maxOutputTokens: isManualAsk ? 100 : 120,
     };
 
     if (!isManualAsk) {
@@ -201,7 +190,7 @@ class GeminiProvider extends AIProvider {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(6500),
         });
 
         if (!response.ok) {

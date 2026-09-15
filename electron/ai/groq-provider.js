@@ -1,5 +1,5 @@
 const { AIProvider } = require('./provider');
-const { validateGeminiResponse } = require('./response-validator');
+const { validateGeminiResponse, formatErrorNotification } = require('./response-validator');
 
 const GROQ_SYSTEM_INSTRUCTION = `You are a high-precision, ultra-fast real-time coding error detector watching a developer's screen.
 Your goal: detect REAL, DEFINITE syntax errors visible on screen and report them in structured JSON.
@@ -25,11 +25,18 @@ If error:
 If no error:
 {
   "error": false
-}`;
+}
+
+Output ONLY valid JSON. No markdown wrapper.`;
 
 const GROQ_MANUAL_ASK_SYSTEM = `You are Catmonto, an ultra-fast AI desktop coding companion.
-Answer the user's question directly, concisely and accurately based on the screen image or query. NO EMOJIS.
-If they ask if there is an error: if clean, state "No errors detected on screen. Code is clean." If error exists, pinpoint line and fix.`;
+CRITICAL RULES:
+1. Maximum 1 or 2 short sentences total. Strictly under 30 words.
+2. NO GREETINGS. NO INTROS ("Based on your screen..."). NO FLUFF. NO EMOJIS.
+3. If user asks about errors:
+   - If error exists: "Line <num>: <concise error>. Fix: <concise fix>."
+   - If code is clean: "Screen par koi error nahi hai. Code clean hai."
+4. If general question: give the direct 1-line answer immediately.`;
 
 class GroqProvider extends AIProvider {
   constructor(options = {}) {
@@ -117,7 +124,7 @@ class GroqProvider extends AIProvider {
       model: this.model || 'qwen/qwen3.6-27b',
       messages,
       temperature: 0.1,
-      max_tokens: 350,
+      max_tokens: 100,
     };
 
     if (!isManualAsk) {
@@ -131,7 +138,7 @@ class GroqProvider extends AIProvider {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(bodyPayload),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(8000),
     });
 
     const networkMs = Date.now() - tStart;
@@ -156,8 +163,25 @@ class GroqProvider extends AIProvider {
     }
 
     const validation = validateGeminiResponse(rawText);
+    if (!validation.hasError || !validation.errorObj) {
+      return {
+        hasError: false,
+        suggestion: null,
+        errorObj: null,
+        fingerprint: null,
+        raw: rawText,
+        activeModel: `Groq (${this.model})`,
+        perf: { networkMs },
+      };
+    }
+
+    const formattedText = formatErrorNotification(validation.errorObj, false);
     return {
-      ...validation,
+      hasError: true,
+      suggestion: formattedText,
+      errorObj: validation.errorObj,
+      fingerprint: validation.fingerprint,
+      raw: rawText,
       activeModel: `Groq (${this.model})`,
       perf: { networkMs },
     };

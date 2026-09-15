@@ -16,8 +16,8 @@ export default function SetupWizardModal({
   onCheckOllama,
 }) {
   const sanitizeGeminiModel = (m) => {
-    if (!m || m.includes('2.0') || m.includes('2.5') || m.includes('1.5') || m.includes('lite-latest')) {
-      return 'gemini-3.5-flash';
+    if (!m || m.includes('3.5') || m.includes('flash-latest')) {
+      return 'gemini-2.0-flash';
     }
     return m;
   };
@@ -85,7 +85,6 @@ export default function SetupWizardModal({
   const [testSnapshot, setTestSnapshot] = useState(null);
   const [capturingTest, setCapturingTest] = useState(false);
 
-<<<<<<< HEAD
   // Groq states
   const [groqApiKey, setGroqApiKey] = useState(settings.groqApiKey || '');
   const [groqModel, setGroqModel] = useState(settings.groqModel || 'qwen/qwen3.6-27b');
@@ -94,7 +93,7 @@ export default function SetupWizardModal({
   const [groqKeyMsg, setGroqKeyMsg] = useState('');
   const [groqTestStatus, setGroqTestStatus] = useState('idle');
   const [groqTestReply, setGroqTestReply] = useState('');
-=======
+
   // Choose screen / window source picker
   const [screenSources, setScreenSources] = useState([]);
   const [loadingSources, setLoadingSources] = useState(false);
@@ -137,7 +136,6 @@ export default function SetupWizardModal({
     const found = screenSources.find((s) => s.id === id);
     setTargetSourceName(found?.name || 'Entire Screen');
   };
->>>>>>> 3746c2db10673cc8c843d8378957ab60e7b42da6
 
   // Ollama fallback states
   const [ollamaUrl, setOllamaUrl] = useState(settings.ollamaUrl || 'http://127.0.0.1:11434');
@@ -616,8 +614,9 @@ export default function SetupWizardModal({
                       onChange={(e) => setGeminiModel(e.target.value)}
                       className="model-select"
                     >
-                      <option value="gemini-3.5-flash">Gemini 3.5 Flash (fastest & high-precision — recommended)</option>
-                      <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (fast lightweight)</option>
+                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fastest & Multimodal — Recommended)</option>
+                      <option value="gemini-1.5-flash">Gemini 1.5 Flash (High Stability)</option>
+                      <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (Lightweight)</option>
                     </select>
                   </div>
 

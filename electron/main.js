@@ -319,7 +319,7 @@ async function processFrame(captureResult) {
           mainWindow.webContents.send('cat:suggestion', {
             text: result.suggestion,
             errorObj: result.errorObj,
-            model: result.activeModel || geminiProvider.model,
+            model: result.activeModel || (aiProviderType === 'groq' ? `Groq (${groqProvider.model})` : geminiProvider.model),
             timestamp: Date.now(),
           });
           setCatState('EXPLAINING');
@@ -700,18 +700,40 @@ ipcMain.on('window:resize', (event, { width, height, center }) => {
 app.whenReady().then(() => {
   // Reload settings now that safeStorage DPAPI is ready
   settingsStore.reload();
-  const currentKey = settingsStore.get('geminiApiKey');
-  if (currentKey) {
-    geminiProvider.setApiKey(currentKey);
-    // Prioritize Gemini if user has an API key configured
-    settingsStore.set('aiProvider', 'gemini');
+
+  // Initialize Gemini
+  const currentGeminiKey = settingsStore.get('geminiApiKey');
+  if (currentGeminiKey) {
+    geminiProvider.setApiKey(currentGeminiKey);
   }
-  let configuredModel = settingsStore.get('geminiModel') || CAT_CONFIG.PRIMARY_GEMINI_MODEL;
-  if (!configuredModel || configuredModel.includes('2.0') || configuredModel.includes('2.5') || configuredModel.includes('1.5') || configuredModel.includes('lite-latest')) {
-    configuredModel = 'gemini-3.5-flash';
-    settingsStore.set('geminiModel', 'gemini-3.5-flash');
+  let configuredModel = settingsStore.get('geminiModel') || 'gemini-2.0-flash';
+  if (!configuredModel || configuredModel.includes('3.5') || configuredModel.includes('flash-latest')) {
+    configuredModel = 'gemini-2.0-flash';
+    settingsStore.set('geminiModel', 'gemini-2.0-flash');
   }
   geminiProvider.setModel(configuredModel);
+
+  // Initialize Groq
+  const currentGroqKey = settingsStore.get('groqApiKey');
+  if (currentGroqKey) {
+    groqProvider.setApiKey(currentGroqKey);
+  }
+  let configuredGroqModel = settingsStore.get('groqModel') || 'qwen/qwen3.6-27b';
+  if (!configuredGroqModel || configuredGroqModel.includes('llama-3.2')) {
+    configuredGroqModel = 'qwen/qwen3.6-27b';
+    settingsStore.set('groqModel', 'qwen/qwen3.6-27b');
+  }
+  groqProvider.setModel(configuredGroqModel);
+
+  // If user has Groq key and selected groq, keep groq; if no provider selected, pick whichever key is available
+  const savedProvider = settingsStore.get('aiProvider');
+  if (!savedProvider) {
+    if (currentGroqKey) {
+      settingsStore.set('aiProvider', 'groq');
+    } else if (currentGeminiKey) {
+      settingsStore.set('aiProvider', 'gemini');
+    }
+  }
 
   createWindow();
 

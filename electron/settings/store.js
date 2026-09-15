@@ -7,14 +7,10 @@ const DEFAULT_SETTINGS = {
   aiProvider: 'gemini', // 'gemini' | 'groq' | 'ollama'
   geminiApiKey: '',
   geminiApiKeyEncrypted: '',
-<<<<<<< HEAD
-  geminiModel: 'gemini-flash-latest',
+  geminiModel: 'gemini-3.5-flash',
   groqApiKey: '',
   groqApiKeyEncrypted: '',
   groqModel: 'qwen/qwen3.6-27b',
-=======
-  geminiModel: 'gemini-3.5-flash',
->>>>>>> 3746c2db10673cc8c843d8378957ab60e7b42da6
   ollamaUrl: 'http://127.0.0.1:11434',
   model: 'qwen2.5-vl:latest',
   checkIntervalSeconds: 3,
@@ -75,12 +71,13 @@ class SettingsStore {
     try {
       if (safeStorage && safeStorage.isEncryptionAvailable()) {
         const buffer = Buffer.from(encryptedVal, 'base64');
-        return safeStorage.decryptString(buffer);
+        const dec = safeStorage.decryptString(buffer);
+        if (dec && dec.length > 5) return dec;
       }
     } catch (e) {
       console.warn('[SettingsStore] safeStorage decryption failed:', e.message);
     }
-    return encryptedVal;
+    return '';
   }
 
   load() {
@@ -104,15 +101,13 @@ class SettingsStore {
           }
         }
 
-        // Migrate deprecated models (2.0, 2.5, 1.5) to Gemini 3.5 Flash
+        // Migrate deprecated/overloaded models to rock-solid gemini-2.0-flash
         if (
           !merged.geminiModel ||
-          merged.geminiModel.includes('2.0') ||
-          merged.geminiModel.includes('2.5') ||
-          merged.geminiModel.includes('1.5') ||
-          merged.geminiModel.includes('lite-latest')
+          merged.geminiModel.includes('3.5') ||
+          merged.geminiModel.includes('flash-latest')
         ) {
-          merged.geminiModel = 'gemini-3.5-flash';
+          merged.geminiModel = 'gemini-2.0-flash';
         }
 
         // Automatically migrate decommissioned Groq models
@@ -123,7 +118,7 @@ class SettingsStore {
         return merged;
       }
     } catch (err) {
-      console.warn('[SettingsStore] Failed to read settings, using defaults:', err.message);
+      console.error('[SettingsStore] Failed to load settings:', err.message);
     }
     return { ...DEFAULT_SETTINGS };
   }
@@ -142,7 +137,6 @@ class SettingsStore {
         const enc = this.encryptValue(toSave.geminiApiKey);
         if (enc && enc !== toSave.geminiApiKey) {
           toSave.geminiApiKeyEncrypted = enc;
-          toSave.geminiApiKey = ''; // Do not store plaintext on disk when encrypted
         }
       } else if (!toSave.rememberSecurely) {
         toSave.geminiApiKeyEncrypted = '';
@@ -152,7 +146,6 @@ class SettingsStore {
         const enc = this.encryptValue(toSave.groqApiKey);
         if (enc && enc !== toSave.groqApiKey) {
           toSave.groqApiKeyEncrypted = enc;
-          toSave.groqApiKey = '';
         }
       } else if (!toSave.rememberSecurely) {
         toSave.groqApiKeyEncrypted = '';
