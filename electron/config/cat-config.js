@@ -3,8 +3,13 @@
  * Controls performance thresholds, frame rates, debounce timings, and exhibition mode.
  */
 const CAT_CONFIG = {
+<<<<<<< HEAD
   // Capture Loop interval in milliseconds (500ms = 2 checks/sec)
   SCREEN_CAPTURE_INTERVAL_MS: 500,
+=======
+  // Capture Loop interval in milliseconds (1000ms = 1 frame/sec, safe for Windows DXGI & WGC)
+  SCREEN_CAPTURE_INTERVAL_MS: 1000,
+>>>>>>> 5c92d95c3786528f9b8b0b56373a787f0ce27c45
 
   // Smart Debounce: wait until user has paused typing for 750ms before calling AI
   TYPING_DEBOUNCE_MS: 750,

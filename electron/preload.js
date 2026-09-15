@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('catmonto', {
   updateCatConfig: (newConfig) => ipcRenderer.invoke('config:update', newConfig),
   getFsmState: () => ipcRenderer.invoke('fsm:getState'),
   clearError: () => ipcRenderer.invoke('cat:clearError'),
+  applyFix: (fixText) => ipcRenderer.invoke('code:applyFix', { fixText }),
+  undoFix: () => ipcRenderer.invoke('code:undoFix'),
 
   // AI & Ask Cat
   checkOllama: () => ipcRenderer.invoke('ollama:check'),

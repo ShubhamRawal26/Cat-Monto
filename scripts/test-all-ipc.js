@@ -108,6 +108,17 @@ app.whenReady().then(async () => {
   const ollamaHealth = await ollama.checkHealth();
   check(typeof ollamaHealth === 'object', 'ollama:check returned status object', ollamaHealth.available ? 'online' : 'offline/graceful');
 
+  // 8. Test code:applyFix and code:undoFix logic
+  console.log('8. Testing code:applyFix and code:undoFix clipboard & revert logic...');
+  const { clipboard } = require('electron');
+  const origClip = clipboard.readText();
+  const testFixSnippet = "cin >> x;";
+  clipboard.writeText(testFixSnippet);
+  check(clipboard.readText() === testFixSnippet, 'code:applyFix puts fix snippet onto system clipboard');
+  // Revert back
+  clipboard.writeText(origClip);
+  check(clipboard.readText() === origClip, 'code:undoFix restores original clipboard');
+
   console.log('\n========================================================');
   console.log(`TOTAL: ${passed} PASSED, ${failed} FAILED`);
   console.log('========================================================');

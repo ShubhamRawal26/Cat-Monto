@@ -24,7 +24,7 @@ export default function AskCatInput({ onAsk, isLoading, onClose }) {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Ask Cat... (Hinglish, Hindi, English)"
+        placeholder="Ask about your screen..."
         disabled={isLoading}
         autoFocus
         className="ask-cat-input"
@@ -33,7 +33,7 @@ export default function AskCatInput({ onAsk, isLoading, onClose }) {
         type="submit"
         disabled={!query.trim() || isLoading}
         className="ask-cat-submit"
-        title="Send Question"
+        title="Send"
       >
         {isLoading ? (
           <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -45,6 +45,15 @@ export default function AskCatInput({ onAsk, isLoading, onClose }) {
             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
           </svg>
         )}
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="ask-cat-submit"
+        title="Close"
+        style={{ background: 'transparent', color: '#64748b', boxShadow: 'none' }}
+      >
+        ×
       </button>
     </form>
   );

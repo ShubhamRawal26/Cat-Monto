@@ -48,6 +48,7 @@ const { GroqProvider } = require('./ai/groq-provider');
 
 let mainWindow = null;
 let monitorInterval = null;
+let isCapturing = false;
 let isAnalyzing = false;
 let lastAnalysisTime = 0;
 let lastErrorAlertTime = 0;
@@ -56,6 +57,7 @@ let screenHasChangedSinceLastAnalysis = false;
 let lastAutoRecheckTime = 0;
 let activeErrorFingerprint = null;
 let currentCatState = 'WATCHING';
+let previousClipboardText = '';
 
 const settingsStore = new SettingsStore();
 const privacyFilter = new PrivacyFilter(settingsStore.get('excludedApps'));
@@ -190,9 +192,15 @@ function startMonitoring() {
   const tickIntervalMs = CAT_CONFIG.SCREEN_CAPTURE_INTERVAL_MS || 500;
 
   monitorInterval = setInterval(async () => {
+    if (isCapturing || isAnalyzing) return;
+    isCapturing = true;
+
     const now = Date.now();
     // Backoff protection if rate-limited
-    if (now < lastAnalysisTime) return;
+    if (now < lastAnalysisTime) {
+      isCapturing = false;
+      return;
+    }
 
     try {
       const targetSourceId = settingsStore.get('targetSourceId');
@@ -238,6 +246,8 @@ function startMonitoring() {
       if (!err.message?.includes('Screen capture image buffer is empty')) {
         console.error('[Monitoring loop error]:', err.message);
       }
+    } finally {
+      isCapturing = false;
     }
   }, tickIntervalMs);
 }
@@ -327,7 +337,10 @@ async function processFrame(captureResult) {
       }
     } else {
       // Screen is error-free (hasError is false)
-      if (activeErrorFingerprint !== null) {
+      const suggestionAge = Date.now() - lastErrorAlertTime;
+      // Do not auto-clear suggestion if it was shown less than 15 seconds ago!
+      // Developer needs time to read the bold error message and click Fix Code.
+      if (activeErrorFingerprint !== null && suggestionAge > 15000) {
         // User successfully fixed the previous error! Celebrate & clear
         activeErrorFingerprint = null;
         setCatState('SUCCESS');
@@ -341,7 +354,7 @@ async function processFrame(captureResult) {
         setTimeout(() => {
           setCatState('WATCHING');
         }, 1500);
-      } else {
+      } else if (activeErrorFingerprint === null) {
         setCatState('WATCHING');
       }
     }
@@ -378,6 +391,7 @@ function stopMonitoring() {
     clearInterval(monitorInterval);
     monitorInterval = null;
   }
+  isCapturing = false;
   screenHasChangedSinceLastAnalysis = false;
   activeErrorFingerprint = null;
   lastAutoRecheckTime = 0;
@@ -450,6 +464,64 @@ ipcMain.handle('cat:clearError', async () => {
   activeErrorFingerprint = null;
   setCatState('WATCHING');
   return { success: true };
+});
+
+ipcMain.handle('code:applyFix', async (event, { fixText }) => {
+  try {
+    if (!fixText || typeof fixText !== 'string') {
+      return { success: false, error: 'Empty fix snippet' };
+    }
+    const { clipboard } = require('electron');
+    previousClipboardText = clipboard.readText();
+    clipboard.writeText(fixText.trim());
+
+    // Yield focus back to code editor and trigger paste on Windows
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.blur();
+      }
+      setTimeout(() => {
+        exec(
+          `powershell -Command "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^v')"`,
+          { timeout: 2500 },
+          (err) => {
+            if (err) console.warn('[code:applyFix] SendKeys notice:', err.message);
+          }
+        );
+      }, 120);
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('code:undoFix', async () => {
+  try {
+    const { clipboard } = require('electron');
+    if (previousClipboardText) {
+      clipboard.writeText(previousClipboardText);
+    }
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.blur();
+      }
+      setTimeout(() => {
+        exec(
+          `powershell -Command "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^z')"`,
+          { timeout: 2500 },
+          (err) => {
+            if (err) console.warn('[code:undoFix] SendKeys notice:', err.message);
+          }
+        );
+      }, 120);
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('ollama:check', async () => {

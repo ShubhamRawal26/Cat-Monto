@@ -151,11 +151,16 @@ class ScreenCapturer {
         fetchWindowIcons: false,
       });
     } catch (err) {
-      console.warn('[ScreenCapturer] getSources failed, retrying screen-only:', err.message);
-      sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: Math.min(width, targetW), height: Math.min(height, targetH) },
-      });
+      console.warn('[ScreenCapturer] getSources failed, retrying screen-only:', err?.message || err);
+      try {
+        sources = await desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: { width: Math.min(width, targetW), height: Math.min(height, targetH) },
+          fetchWindowIcons: false,
+        });
+      } catch (e2) {
+        console.error('[ScreenCapturer] screen-only fallback failed:', e2?.message || e2);
+      }
     }
 
     if (!sources || sources.length === 0) {
@@ -253,7 +258,7 @@ class ScreenCapturer {
 
   /**
    * Compare micro-bitmap buffer with previous frame.
-   * Accurately detects single-character keystrokes while filtering stationary cursor noise.
+   * Accurately detects keystrokes while filtering stationary cursor blink noise.
    */
   detectChange(currentBitmap, isErrorActive = false) {
     if (!this.lastThumbnail || this.lastThumbnail.length !== currentBitmap.length) {
@@ -275,9 +280,9 @@ class ScreenCapturer {
     }
 
     const diffRatio = diffPixels / totalPixels;
-    // When an error is active, even a single pixel change indicates the user is attempting a fix
+    // When an error is active, require at least 15 pixels to filter stationary cursor blinking
     if (isErrorActive) {
-      return diffPixels >= 1;
+      return diffPixels >= 15;
     }
     // Respect configured threshold (e.g. 0.04 in unit tests or CAT_CONFIG.THUMBNAIL_DIFF_THRESHOLD)
     return diffRatio >= this.threshold;

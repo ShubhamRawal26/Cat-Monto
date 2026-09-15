@@ -54,17 +54,24 @@ function parseSuggestion(rawText) {
 }
 
 /**
- * Render text with inline markdown code tags `code`
+ * Render text with inline markdown code tags `code` and **bold**
  */
 function renderFormattedText(text) {
   if (!text) return null;
-  const parts = text.split(/(`[^`]+`)/g);
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
       return (
-        <code key={i} className="bubble-inline-code">
+        <strong key={i} className="bubble-inline-code">
           {part.slice(1, -1)}
-        </code>
+        </strong>
+      );
+    }
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      return (
+        <strong key={i} className="bubble-bold">
+          {part.slice(2, -2)}
+        </strong>
       );
     }
     return part;
@@ -72,18 +79,22 @@ function renderFormattedText(text) {
 }
 
 /**
- * Professional SpeechBubble component with beautiful typography and zero emojis
+ * Professional SpeechBubble component with beautiful typography, bold error fixes,
+ * and 1-click Fix Code / Undo Fix buttons
  */
 export default function SpeechBubble({
   text,
   onDismiss,
-  autoDismissMs = 15000,
+  autoDismissMs = 30000,
   onHeightChange,
   modelName,
 }) {
   const [copied, setCopied] = useState(false);
+  const [isFixApplied, setIsFixApplied] = useState(false);
+  const [fixStatusMsg, setFixStatusMsg] = useState('');
   const cardRef = React.useRef(null);
 
+  // Auto-dismiss after configured dwell time (defaults to 30s)
   useEffect(() => {
     if (!text || autoDismissMs <= 0) return;
     const timer = setTimeout(() => {
@@ -124,7 +135,7 @@ export default function SpeechBubble({
     return () => {
       if (observer) observer.disconnect();
     };
-  }, [text, onHeightChange]);
+  }, [text, onHeightChange, isFixApplied, fixStatusMsg]);
 
   if (!text) return null;
 
@@ -146,6 +157,37 @@ export default function SpeechBubble({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (_) {}
+  };
+
+  const handleApplyFix = async (e) => {
+    e.stopPropagation();
+    const textToApply = fixText || clean;
+    if (!textToApply) return;
+
+    if (!isFixApplied) {
+      // 1. Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(textToApply);
+      } catch (_) {}
+
+      // 2. Trigger native paste into active editor
+      if (window.catmonto?.applyFix) {
+        await window.catmonto.applyFix(textToApply);
+      }
+
+      setIsFixApplied(true);
+      setFixStatusMsg('Applied! (Pasted to editor)');
+      setTimeout(() => setFixStatusMsg(''), 3000);
+    } else {
+      // 3. Revert / Undo change in editor
+      if (window.catmonto?.undoFix) {
+        await window.catmonto.undoFix();
+      }
+
+      setIsFixApplied(false);
+      setFixStatusMsg('Reverted! (Ctrl+Z restored)');
+      setTimeout(() => setFixStatusMsg(''), 3000);
+    }
   };
 
   return (
@@ -172,7 +214,7 @@ export default function SpeechBubble({
               type="button"
               onClick={handleCopyFix}
               className="bubble-copy-btn"
-              title="Copy fix"
+              title="Copy fix to clipboard"
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -204,15 +246,59 @@ export default function SpeechBubble({
               {renderFormattedText(errorText)}
             </div>
             <div className="bubble-fix-container">
-              <div className="bubble-fix-label">Fix:</div>
+              <div className="bubble-fix-header">
+                <div className="bubble-fix-label">Suggested Fix:</div>
+                <button
+                  type="button"
+                  onClick={handleApplyFix}
+                  className={`bubble-fix-action-btn ${isFixApplied ? 'is-applied' : ''}`}
+                  title={isFixApplied ? "Click to revert code changes (Ctrl+Z)" : "Click to apply fix directly to code editor (Ctrl+V)"}
+                >
+                  {isFixApplied ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="1 4 1 10 7 10" />
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                      </svg>
+                      <span>Undo Fix</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                      </svg>
+                      <span>Fix Code</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="bubble-fix-code">
                 {renderFormattedText(fixText)}
               </div>
+              {fixStatusMsg && (
+                <div className={`bubble-status-toast ${isFixApplied ? 'toast-success' : 'toast-undo'}`}>
+                  {fixStatusMsg}
+                </div>
+              )}
             </div>
           </>
         ) : (
           <div className="bubble-plain-text">
             {renderFormattedText(clean)}
+            {clean && !clean.includes('no errors') && !clean.includes('clean') && clean.length > 5 && (
+              <div className="bubble-plain-action-row">
+                <button
+                  type="button"
+                  onClick={handleApplyFix}
+                  className={`bubble-fix-action-btn ${isFixApplied ? 'is-applied' : ''}`}
+                >
+                  {isFixApplied ? 'Undo Fix' : 'Fix Code'}
+                </button>
+                {fixStatusMsg && (
+                  <span className="bubble-inline-status">{fixStatusMsg}</span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

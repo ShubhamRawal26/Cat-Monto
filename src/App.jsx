@@ -144,15 +144,10 @@ export default function App() {
   };
 
   // Quick toggle to simulate a code error and test cat wake-up
-  const handleToggleTestError = () => {
-    if (catState === 'sleeping' && !suggestion) {
-      setSuggestion("[Line 42] SyntaxError: Unexpected token '}'. Check closing brackets!\nFix: Remove extra '}' on line 42");
-      setCatState('speaking');
-    } else {
-      setSuggestion(null);
-      setCatState('sleeping');
-      window.catmonto?.clearError?.();
-    }
+  const handleClearError = () => {
+    setSuggestion(null);
+    setCatState('sleeping');
+    window.catmonto?.clearError?.();
   };
 
   const handleSaveSettings = async (newSettings) => {
@@ -225,7 +220,7 @@ export default function App() {
         />
       )}
 
-      {/* Main Cat Character (Click to open Setup Wizard, Right-click to Ask) */}
+      {/* Main Cat (Click = Settings, Right-click = Ask) */}
       {!isWizardOpen && (
         <div
           className="cat-wrapper no-drag"
@@ -233,11 +228,7 @@ export default function App() {
             e.preventDefault();
             setShowAskInput((prev) => !prev);
           }}
-          title={
-            catState === 'sleeping'
-              ? 'No errors in code — Cat is sleeping peacefully. Click to open Settings.'
-              : 'Error detected! Cat is awake. Click to open Settings.'
-          }
+          title="Click for Settings • Right-click to Ask"
         >
           <CatCharacter
             state={catState}
@@ -245,7 +236,8 @@ export default function App() {
             onCatClick={openWizard}
           />
 
-          {/* Floating Quick Action badge */}
+          {/* Simple actions: Ask + Watch + status (only when active) */}
+          {/* Floating Quick Action buttons */}
           <div className="cat-quick-actions no-drag">
             <button
               type="button"
@@ -253,7 +245,7 @@ export default function App() {
                 e.stopPropagation();
                 setShowAskInput((prev) => !prev);
               }}
-              className="quick-ask-btn"
+              className="quick-action-pill ask-pill"
               title="Ask Cat about your screen"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -266,56 +258,25 @@ export default function App() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleToggleTestError();
-              }}
-              className={`quick-status-btn ${
-                hasActiveError
-                  ? 'error-active'
-                  : fsmState === 'ANALYZING'
-                  ? 'analyzing-active'
-                  : fsmState === 'SUCCESS'
-                  ? 'success-active'
-                  : 'sleep-mode'
-              }`}
-              title={
-                hasActiveError
-                  ? 'Error active (Click to clear and let cat sleep)'
-                  : `Status: ${fsmState}`
-              }
-            >
-              <span
-                className={`status-dot-mini ${
-                  hasActiveError
-                    ? 'error-dot pulse'
-                    : fsmState === 'ANALYZING'
-                    ? 'analyzing-dot pulse'
-                    : fsmState === 'SUCCESS'
-                    ? 'success-dot pulse'
-                    : 'sleep-dot'
-                }`}
-              />
-              <span>
-                {hasActiveError
-                  ? 'Error!'
-                  : fsmState === 'ANALYZING'
-                  ? 'Checking'
-                  : fsmState === 'SUCCESS'
-                  ? 'Fixed!'
-                  : 'Sleeping'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
                 handleToggleMonitoring();
               }}
-              className={`quick-status-btn ${isMonitoring ? 'active' : 'idle'}`}
-              title={isMonitoring ? 'Monitoring Active (Click to Pause)' : 'Monitoring Paused (Click to Resume)'}
+              className={`quick-action-pill toggle-watch-pill ${isMonitoring ? 'is-watching' : 'is-paused'}`}
+              title={isMonitoring ? 'Watching screen (click to pause)' : 'Paused (click to watch)'}
             >
-              <span className={`status-dot-mini ${isMonitoring ? 'pulse' : ''}`} />
-              <span>{isMonitoring ? 'Watch' : 'Off'}</span>
+              {isMonitoring ? (
+                <>
+                  <span className="watch-pulse-dot" />
+                  <span>Watch</span>
+                </>
+              ) : (
+                <>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                  <span>Paused</span>
+                </>
+              )}
             </button>
           </div>
         </div>
